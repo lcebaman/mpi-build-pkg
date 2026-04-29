@@ -11,7 +11,8 @@
 #   --compiler=<name>          Compiler family: gcc | aocc | intel  (required)
 #   --compiler-version=<ver>   Compiler version, e.g. 2025.2.1      (required)
 #   --ompi-version=<ver>       OpenMPI version, e.g. 5.0.9          (required)
-#   --ucx-version=<ver>        UCX version, e.g. 1.20.0             (required)
+#   --ucx-version=<ver|system> UCX version, e.g. 1.20.0, or system (required)
+#   --ucx=system               Alias for --ucx-version=system
 #   --ucc-version=<ver>        UCC version, e.g. 1.3.0              (required)
 #   --prefix=<path>            Installation root                     (required)
 #   --with-hcoll[=<path>]      Enable hcoll (auto-detect or explicit path)
@@ -74,6 +75,7 @@ COMPILER=""
 COMPILER_VERSION=""
 OMPI_VERSION=""
 UCX_VERSION=""
+UCX_SYSTEM=0
 UCC_VERSION=""
 PREFIX=""
 MODULE_ROOT=""
@@ -99,6 +101,7 @@ for arg in "$@"; do
     --compiler-version=*)  COMPILER_VERSION="${arg#--compiler-version=}" ;;
     --ompi-version=*)      OMPI_VERSION="${arg#--ompi-version=}" ;;
     --ucx-version=*)       UCX_VERSION="${arg#--ucx-version=}" ;;
+    --ucx=system)          UCX_VERSION="system" ;;
     --ucc-version=*)       UCC_VERSION="${arg#--ucc-version=}" ;;
     --prefix=*)            PREFIX="${arg#--prefix=}" ;;
     --module-root=*)       MODULE_ROOT="${arg#--module-root=}" ;;
@@ -138,16 +141,27 @@ done
 [[ -z "$PREFIX" ]]           && log_die "--prefix is required"
 
 validate_version "$OMPI_VERSION" "OpenMPI"
-validate_version "$UCX_VERSION"  "UCX"
+if [[ "$UCX_VERSION" == "system" ]]; then
+    UCX_SYSTEM=1
+    SKIP_UCX=1
+else
+    validate_version "$UCX_VERSION"  "UCX"
+fi
 validate_version "$UCC_VERSION"  "UCC"
 
 PREFIX="${PREFIX%/}"
 MODULE_ROOT="${MODULE_ROOT:-$PWD/modules}"
 
 # Install paths follow: $PREFIX/<pkg>/<version>/<compiler>/<compiler_version>
-UCX_PREFIX="$PREFIX/ucx/$UCX_VERSION/$COMPILER/$COMPILER_VERSION"
+if [[ $UCX_SYSTEM -eq 1 ]]; then
+    UCX_PREFIX="system"
+else
+    UCX_PREFIX="$PREFIX/ucx/$UCX_VERSION/$COMPILER/$COMPILER_VERSION"
+fi
 UCC_PREFIX="$PREFIX/ucc/$UCC_VERSION/$COMPILER/$COMPILER_VERSION"
 OMPI_PREFIX="$PREFIX/openmpi/$OMPI_VERSION/$COMPILER/$COMPILER_VERSION"
+OMPI_MODULE_UCX_ROOT="$UCX_PREFIX"
+[[ $UCX_SYSTEM -eq 1 ]] && OMPI_MODULE_UCX_ROOT=""
 
 # =============================================================================
 # Print configuration summary
@@ -155,7 +169,11 @@ OMPI_PREFIX="$PREFIX/openmpi/$OMPI_VERSION/$COMPILER/$COMPILER_VERSION"
 log_banner "MPI Stack Build Configuration"
 log_kv "Compiler"         "$COMPILER $COMPILER_VERSION"
 log_kv "OpenMPI"          "$OMPI_VERSION  →  $OMPI_PREFIX"
-log_kv "UCX"              "$UCX_VERSION   →  $UCX_PREFIX"
+if [[ $UCX_SYSTEM -eq 1 ]]; then
+    log_kv "UCX"              "system installed UCX"
+else
+    log_kv "UCX"              "$UCX_VERSION   →  $UCX_PREFIX"
+fi
 log_kv "UCC"              "$UCC_VERSION   →  $UCC_PREFIX"
 log_kv "hcoll"            "$HCOLL_MODE"
 log_kv "CUDA"             "$CUDA_MODE"
@@ -197,7 +215,11 @@ if [[ $SKIP_UCX -eq 0 ]]; then
         "$COMPILER" "$COMPILER_VERSION" "$MODULE_ROOT"
     log_ok "UCX done  ($(elapsed $START_TOTAL)s total)"
 else
-    log_info "Skipping UCX build — using $UCX_PREFIX"
+    if [[ $UCX_SYSTEM -eq 1 ]]; then
+        log_info "Skipping UCX build — using system installed UCX"
+    else
+        log_info "Skipping UCX build — using $UCX_PREFIX"
+    fi
 fi
 
 T_UCC=$SECONDS
@@ -224,7 +246,7 @@ if [[ $SKIP_OMPI -eq 0 ]]; then
         "$CUDA_DIR"
     generate_module "openmpi" "$OMPI_VERSION" "$OMPI_PREFIX" \
         "$COMPILER" "$COMPILER_VERSION" "$MODULE_ROOT" \
-        "$UCX_PREFIX" "$UCC_PREFIX" "$HCOLL_DIR"
+        "$OMPI_MODULE_UCX_ROOT" "$UCC_PREFIX" "$HCOLL_DIR"
     log_ok "OpenMPI done  ($(elapsed $T_OMPI)s)"
 else
     log_info "Skipping OpenMPI build"

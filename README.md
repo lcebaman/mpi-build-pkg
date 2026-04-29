@@ -33,6 +33,12 @@ mpi-build-pkg/
     --ompi-version=5.0.9 --ucx-version=1.20.0 --ucc-version=1.3.0 \
     --prefix=/hpc/base/amd
 
+# Use UCX from the system compiler/library search paths
+./build_mpi_stack.sh \
+    --compiler=gcc --compiler-version=13.2.0 \
+    --ompi-version=5.0.9 --ucx-version=system --ucc-version=1.3.0 \
+    --prefix=/hpc/base/swstack
+
 # Legacy cluster with hcoll from HPC-X
 ./build_mpi_stack.sh \
     --compiler=intel --compiler-version=2025.2.1 \
@@ -48,7 +54,8 @@ mpi-build-pkg/
 | `--compiler=` | — | `gcc` \| `aocc` \| `intel` (required) |
 | `--compiler-version=` | — | e.g. `2025.2.1` (required) |
 | `--ompi-version=` | — | e.g. `5.0.9` (required) |
-| `--ucx-version=` | — | e.g. `1.20.0` (required) |
+| `--ucx-version=` | — | e.g. `1.20.0`, or `system` to use system UCX (required) |
+| `--ucx=system` | — | Alias for `--ucx-version=system` |
 | `--ucc-version=` | — | e.g. `1.3.0` (required) |
 | `--prefix=` | — | Installation root (required) |
 | `--module-root=` | `$PWD/modules` | Where to write Lmod `.lua` files |
@@ -90,6 +97,8 @@ module use /path/to/modules
 module load openmpi/5.0.9/intel/2025.2.1
 ```
 The OpenMPI module automatically prepends paths for UCX, UCC (and hcoll if used).
+When `--ucx-version=system` is used, no UCX module is generated and the OpenMPI
+module does not prepend UCX paths.
 
 ## Environment overrides
 
