@@ -2,7 +2,7 @@
 # =============================================================================
 # build_mpi_stack.sh — Top-level MPI stack builder
 #
-# Builds: UCX → UCC → OpenMPI (with optional hcoll and CUDA support)
+# Builds: UCX → OpenMPI, with optional UCC, hcoll, and CUDA support
 #
 # Usage:
 #   ./build_mpi_stack.sh [OPTIONS]
@@ -13,14 +13,14 @@
 #   --ompi-version=<ver>       OpenMPI version, e.g. 5.0.9          (required)
 #   --ucx-version=<ver|system> UCX version, e.g. 1.20.0, or system (required)
 #   --ucx=system               Alias for --ucx-version=system
-#   --ucc-version=<ver>        UCC version, e.g. 1.3.0              (required)
+#   --ucc-version=<ver>        Enable UCC and use version, e.g. 1.3.0
 #   --prefix=<path>            Installation root                     (required)
 #   --with-hcoll[=<path>]      Enable hcoll (auto-detect or explicit path)
 #   --without-hcoll            Disable hcoll (default)
 #   --with-cuda[=<path>]       Enable CUDA support (auto-detect or explicit path)
 #   --without-cuda             Disable CUDA support (default: auto-detect)
 #   --with-gdrcopy[=<path>]    Enable GDRCopy (auto-detect or explicit path)
-#   --module-root=<path>       Where to write Lmod .lua files (default: $PWD/modules)
+#   --module-root=<path>       Where to write Lmod .lua files (default: ./modules next to this script)
 #   --skip-ucx                 Skip UCX build (use existing install)
 #   --skip-ucc                 Skip UCC build (use existing install)
 #   --skip-ompi                Skip OpenMPI build
@@ -37,14 +37,14 @@
 #   # Intel + CUDA, no hcoll (recommended modern stack):
 #   ./build_mpi_stack.sh \
 #       --compiler=intel --compiler-version=2025.2.1 \
-#       --ompi-version=5.0.9 --ucx-version=1.20.0 --ucc-version=1.3.0 \
+#       --ompi-version=5.0.9 --ucx-version=1.20.0 \
 #       --prefix=/hpc/base/swstack \
 #       --with-cuda
 #
 #   # AOCC, no GPU, no hcoll:
 #   ./build_mpi_stack.sh \
 #       --compiler=aocc --compiler-version=5.0.0 \
-#       --ompi-version=5.0.9 --ucx-version=1.20.0 --ucc-version=1.3.0 \
+#       --ompi-version=5.0.9 --ucx-version=1.20.0 \
 #       --prefix=/hpc/base/amd
 #
 #   # Intel + explicit hcoll from HPC-X (legacy clusters):
@@ -58,6 +58,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/lib"
+START_DIR="$PWD"
 
 # Source all library modules
 source "$LIB_DIR/log.sh"
@@ -77,6 +78,7 @@ OMPI_VERSION=""
 UCX_VERSION=""
 UCX_SYSTEM=0
 UCC_VERSION=""
+UCC_ENABLED=0
 PREFIX=""
 MODULE_ROOT=""
 HCOLL_MODE="no"          # no | auto | yes:<path>
@@ -137,7 +139,6 @@ done
 [[ -z "$COMPILER_VERSION" ]] && log_die "--compiler-version is required"
 [[ -z "$OMPI_VERSION" ]]     && log_die "--ompi-version is required"
 [[ -z "$UCX_VERSION" ]]      && log_die "--ucx-version is required"
-[[ -z "$UCC_VERSION" ]]      && log_die "--ucc-version is required"
 [[ -z "$PREFIX" ]]           && log_die "--prefix is required"
 
 validate_version "$OMPI_VERSION" "OpenMPI"
@@ -147,10 +148,18 @@ if [[ "$UCX_VERSION" == "system" ]]; then
 else
     validate_version "$UCX_VERSION"  "UCX"
 fi
-validate_version "$UCC_VERSION"  "UCC"
+if [[ -n "$UCC_VERSION" ]]; then
+    UCC_ENABLED=1
+    validate_version "$UCC_VERSION"  "UCC"
+fi
 
 PREFIX="${PREFIX%/}"
-MODULE_ROOT="${MODULE_ROOT:-$PWD/modules}"
+MODULE_ROOT="${MODULE_ROOT:-$SCRIPT_DIR/modules}"
+case "$MODULE_ROOT" in
+    /*) ;;
+    *)  MODULE_ROOT="$START_DIR/$MODULE_ROOT" ;;
+esac
+MODULE_ROOT="${MODULE_ROOT%/}"
 
 # Install paths follow: $PREFIX/<pkg>/<version>/<compiler>/<compiler_version>
 if [[ $UCX_SYSTEM -eq 1 ]]; then
@@ -158,10 +167,14 @@ if [[ $UCX_SYSTEM -eq 1 ]]; then
 else
     UCX_PREFIX="$PREFIX/ucx/$UCX_VERSION/$COMPILER/$COMPILER_VERSION"
 fi
-UCC_PREFIX="$PREFIX/ucc/$UCC_VERSION/$COMPILER/$COMPILER_VERSION"
+UCC_PREFIX=""
+if [[ $UCC_ENABLED -eq 1 ]]; then
+    UCC_PREFIX="$PREFIX/ucc/$UCC_VERSION/$COMPILER/$COMPILER_VERSION"
+fi
 OMPI_PREFIX="$PREFIX/openmpi/$OMPI_VERSION/$COMPILER/$COMPILER_VERSION"
 OMPI_MODULE_UCX_ROOT="$UCX_PREFIX"
 [[ $UCX_SYSTEM -eq 1 ]] && OMPI_MODULE_UCX_ROOT=""
+OMPI_MODULE_UCC_ROOT="$UCC_PREFIX"
 
 # =============================================================================
 # Print configuration summary
@@ -174,7 +187,11 @@ if [[ $UCX_SYSTEM -eq 1 ]]; then
 else
     log_kv "UCX"              "$UCX_VERSION   →  $UCX_PREFIX"
 fi
-log_kv "UCC"              "$UCC_VERSION   →  $UCC_PREFIX"
+if [[ $UCC_ENABLED -eq 1 ]]; then
+    log_kv "UCC"              "$UCC_VERSION   →  $UCC_PREFIX"
+else
+    log_kv "UCC"              "disabled"
+fi
 log_kv "hcoll"            "$HCOLL_MODE"
 log_kv "CUDA"             "$CUDA_MODE"
 log_kv "GDRCopy"          "$GDRCOPY_MODE"
@@ -223,7 +240,7 @@ else
 fi
 
 T_UCC=$SECONDS
-if [[ $SKIP_UCC -eq 0 ]]; then
+if [[ $UCC_ENABLED -eq 1 && $SKIP_UCC -eq 0 ]]; then
     log_step "Building UCC $UCC_VERSION"
     mkdir -p "$UCC_PREFIX"
     ucc_download "$UCC_VERSION"
@@ -232,7 +249,11 @@ if [[ $SKIP_UCC -eq 0 ]]; then
         "$COMPILER" "$COMPILER_VERSION" "$MODULE_ROOT"
     log_ok "UCC done  ($(elapsed $T_UCC)s)"
 else
-    log_info "Skipping UCC build — using $UCC_PREFIX"
+    if [[ $UCC_ENABLED -eq 1 ]]; then
+        log_info "Skipping UCC build — using $UCC_PREFIX"
+    else
+        log_info "UCC disabled"
+    fi
 fi
 
 T_OMPI=$SECONDS
@@ -246,7 +267,7 @@ if [[ $SKIP_OMPI -eq 0 ]]; then
         "$CUDA_DIR"
     generate_module "openmpi" "$OMPI_VERSION" "$OMPI_PREFIX" \
         "$COMPILER" "$COMPILER_VERSION" "$MODULE_ROOT" \
-        "$OMPI_MODULE_UCX_ROOT" "$UCC_PREFIX" "$HCOLL_DIR"
+        "$OMPI_MODULE_UCX_ROOT" "$OMPI_MODULE_UCC_ROOT" "$HCOLL_DIR"
     log_ok "OpenMPI done  ($(elapsed $T_OMPI)s)"
 else
     log_info "Skipping OpenMPI build"

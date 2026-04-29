@@ -45,6 +45,7 @@ ompi_build() {
     local knem_dir=""
     local prte_flag=""
     local ucx_arg=""
+    local ucc_arg="--without-ucc"
     local -a configure_args
 
     log_info "Configuring OpenMPI ${version} → ${install_dir}"
@@ -66,10 +67,16 @@ ompi_build() {
     fi
 
     # --- UCC ---
-    extra_cpp+=" -I${ucc_dir}/include"
-    extra_ld+=" -L${ucc_dir}/lib"
-    extra_rpath+=" -Wl,-rpath,${ucc_dir}/lib"
-    export LD_LIBRARY_PATH="${ucc_dir}/lib:${LD_LIBRARY_PATH:-}"
+    if [[ -n "$ucc_dir" ]]; then
+        log_info "OpenMPI: enabling UCC ($ucc_dir)"
+        extra_cpp+=" -I${ucc_dir}/include"
+        extra_ld+=" -L${ucc_dir}/lib"
+        extra_rpath+=" -Wl,-rpath,${ucc_dir}/lib"
+        export LD_LIBRARY_PATH="${ucc_dir}/lib:${LD_LIBRARY_PATH:-}"
+        ucc_arg="--with-ucc=${ucc_dir}"
+    else
+        log_info "OpenMPI: UCC disabled"
+    fi
 
     # --- hcoll ---
     local hcoll_arg="--without-hcoll"
@@ -115,7 +122,7 @@ ompi_build() {
         "--enable-mpi1-compatibility"
         "--enable-mpi-fortran=all"
         "$ucx_arg"
-        "--with-ucc=${ucc_dir}"
+        "$ucc_arg"
         "--with-pmix"
         "--with-ofi=no"
         "$hcoll_arg"
