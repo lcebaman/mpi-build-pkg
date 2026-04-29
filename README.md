@@ -1,6 +1,6 @@
 # mpi-build-pkg
 
-Build UCX + UCC + OpenMPI as a coherent stack, with optional CUDA and hcoll support.
+Build UCX + OpenMPI as a coherent stack, with optional UCC, CUDA, and hcoll support.
 
 ## Package layout
 
@@ -20,23 +20,35 @@ mpi-build-pkg/
 ## Quick start
 
 ```bash
-# Recommended modern stack — Intel compiler, CUDA auto-detected, no hcoll
+# Intel compiler, CUDA auto-detected, no hcoll
 ./build_mpi_stack.sh \
     --compiler=intel --compiler-version=2025.2.1 \
-    --ompi-version=5.0.9 --ucx-version=1.20.0 --ucc-version=1.3.0 \
+    --ompi-version=5.0.9 --ucx-version=1.20.0 \
     --prefix=/hpc/base/swstack \
     --with-cuda
 
 # AOCC, no GPU
 ./build_mpi_stack.sh \
     --compiler=aocc --compiler-version=5.0.0 \
-    --ompi-version=5.0.9 --ucx-version=1.20.0 --ucc-version=1.3.0 \
+    --ompi-version=5.0.9 --ucx-version=1.20.0 \
     --prefix=/hpc/base/amd
+
+# Use UCX from the system compiler/library search paths
+./build_mpi_stack.sh \
+    --compiler=gcc --compiler-version=13.2.0 \
+    --ompi-version=5.0.9 --ucx-version=system \
+    --prefix=/hpc/base/swstack
+
+# Enable UCC explicitly
+./build_mpi_stack.sh \
+    --compiler=intel --compiler-version=2025.2.1 \
+    --ompi-version=5.0.9 --ucx-version=1.20.0 --ucc-version=1.3.0 \
+    --prefix=/hpc/base/swstack
 
 # Legacy cluster with hcoll from HPC-X
 ./build_mpi_stack.sh \
     --compiler=intel --compiler-version=2025.2.1 \
-    --ompi-version=5.0.9 --ucx-version=1.20.0 --ucc-version=1.3.0 \
+    --ompi-version=5.0.9 --ucx-version=1.20.0 \
     --prefix=/hpc/base/swstack \
     --with-hcoll=/opt/mellanox/hpc-x/hpc-x-v2.21/hcoll
 ```
@@ -48,17 +60,18 @@ mpi-build-pkg/
 | `--compiler=` | — | `gcc` \| `aocc` \| `intel` (required) |
 | `--compiler-version=` | — | e.g. `2025.2.1` (required) |
 | `--ompi-version=` | — | e.g. `5.0.9` (required) |
-| `--ucx-version=` | — | e.g. `1.20.0` (required) |
-| `--ucc-version=` | — | e.g. `1.3.0` (required) |
+| `--ucx-version=` | — | e.g. `1.20.0`, or `system` to use system UCX (required) |
+| `--ucx=system` | — | Alias for `--ucx-version=system` |
+| `--ucc-version=` | disabled | Enable UCC and use version, e.g. `1.3.0` |
 | `--prefix=` | — | Installation root (required) |
-| `--module-root=` | `$PWD/modules` | Where to write Lmod `.lua` files |
+| `--module-root=` | `./modules` next to `build_mpi_stack.sh` | Where to write Lmod `.lua` files |
 | `--with-hcoll[=PATH]` | disabled | Enable hcoll; auto-detect or explicit path |
 | `--without-hcoll` | ✓ default | Disable hcoll |
 | `--with-cuda[=PATH]` | auto-detect | Enable GPU-aware MPI |
 | `--without-cuda` | — | Force-disable CUDA |
 | `--with-gdrcopy[=PATH]` | auto-detect | Enable GDRCopy (intra-node GPU DMA) |
 | `--skip-ucx` | — | Skip UCX build, use existing install |
-| `--skip-ucc` | — | Skip UCC build, use existing install |
+| `--skip-ucc` | — | With `--ucc-version`, skip UCC build and use existing install |
 | `--skip-ompi` | — | Skip OpenMPI build |
 | `--dry-run` | — | Print config and exit, no build |
 
@@ -71,16 +84,16 @@ $PREFIX/<pkg>/<version>/<compiler>/<compiler_version>/
 e.g.:
 ```
 /hpc/base/swstack/ucx/1.20.0/intel/2025.2.1/
-/hpc/base/swstack/ucc/1.3.0/intel/2025.2.1/
+/hpc/base/swstack/ucc/1.3.0/intel/2025.2.1/  # only with --ucc-version
 /hpc/base/swstack/openmpi/5.0.9/intel/2025.2.1/
 ```
 
 ## Lmod modules
 
-Generated at `--module-root` (default `$PWD/modules`):
+Generated at `--module-root` (default `modules/` next to `build_mpi_stack.sh`):
 ```
 modules/ucx/1.20.0/intel/2025.2.1.lua
-modules/ucc/1.3.0/intel/2025.2.1.lua
+modules/ucc/1.3.0/intel/2025.2.1.lua        # only with --ucc-version
 modules/openmpi/5.0.9/intel/2025.2.1.lua
 ```
 
@@ -89,7 +102,9 @@ Load with:
 module use /path/to/modules
 module load openmpi/5.0.9/intel/2025.2.1
 ```
-The OpenMPI module automatically prepends paths for UCX, UCC (and hcoll if used).
+The OpenMPI module automatically prepends paths for UCX, UCC, and hcoll when those dependencies are enabled.
+When `--ucx-version=system` is used, no UCX module is generated and the OpenMPI
+module does not prepend UCX paths.
 
 ## Environment overrides
 

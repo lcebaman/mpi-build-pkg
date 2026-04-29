@@ -48,14 +48,22 @@ ucc_build() {
     local cuda_dir="${4:-}"
     local build_dir="ucc-${version}"
     local nccl_dir=""
+    local ucx_arg=""
     local -a configure_args
 
     log_info "Configuring UCC ${version} → ${install_dir}"
     cd "$build_dir"
 
+    if [[ "$ucx_dir" == "system" ]]; then
+        log_info "UCC: enabling system UCX"
+        ucx_arg="--with-ucx"
+    else
+        ucx_arg="--with-ucx=${ucx_dir}"
+    fi
+
     configure_args=(
         "--prefix=${install_dir}"
-        "--with-ucx=${ucx_dir}"
+        "$ucx_arg"
         "--enable-shared"
         "--enable-static"
         "--with-pic"

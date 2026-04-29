@@ -70,7 +70,7 @@ find_hcoll_dir() {
     local candidate
 
     # 1. Explicit env var
-    if [[ -n "${HCOLL_DIR:-}" && -f "${HCOLL_DIR}/include/hcoll/api.h" ]]; then
+    if [[ -n "${HCOLL_DIR:-}" && -f "${HCOLL_DIR}/include/hcoll/api/hcoll_api.h" ]]; then
         printf '%s\n' "$HCOLL_DIR"; return 0
     fi
 
@@ -78,13 +78,13 @@ find_hcoll_dir() {
     if [[ -d /opt/mellanox/hpc-x ]]; then
         candidate=$(find /opt/mellanox/hpc-x -maxdepth 3 -type d -name hcoll 2>/dev/null \
                     | sort -V | tail -n1 || true)
-        if [[ -n "$candidate" && -f "$candidate/include/hcoll/api.h" ]]; then
+        if [[ -n "$candidate" && -f "$candidate/include/hcoll/api/hcoll_api.h" ]]; then
             printf '%s\n' "$candidate"; return 0
         fi
     fi
 
     # 3. Standalone
-    if [[ -f /opt/mellanox/hcoll/include/hcoll/api.h ]]; then
+    if [[ -f /opt/mellanox/hcoll/include/hcoll/api/hcoll_api.h ]]; then
         printf '%s\n' /opt/mellanox/hcoll; return 0
     fi
 
@@ -95,7 +95,7 @@ find_hcoll_dir() {
 validate_hcoll() {
     local dir=$1
     local ok=1
-    [[ -f "$dir/include/hcoll/api.h" ]] || { log_warn "hcoll: missing header $dir/include/hcoll/api.h"; ok=0; }
+    [[ -f "$dir/include/hcoll/api/hcoll_api.h" ]] || { log_warn "hcoll: missing header $dir/include/hcoll/api/hcoll_api.h"; ok=0; }
     ls "$dir/lib/libhcoll.so"* &>/dev/null  || { log_warn "hcoll: missing $dir/lib/libhcoll.so*"; ok=0; }
     return $(( 1 - ok ))
 }

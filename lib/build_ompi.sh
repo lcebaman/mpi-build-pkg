@@ -44,6 +44,8 @@ ompi_build() {
     local compiler_basename="${CC##*/}"
     local knem_dir=""
     local prte_flag=""
+    local ucx_arg=""
+    local ucc_arg="--without-ucc"
     local -a configure_args
 
     log_info "Configuring OpenMPI ${version} → ${install_dir}"
@@ -53,16 +55,28 @@ ompi_build() {
     local extra_cpp="" extra_ld="" extra_rpath=""
 
     # --- UCX ---
-    extra_cpp+=" -I${ucx_dir}/include"
-    extra_ld+=" -L${ucx_dir}/lib"
-    extra_rpath+=" -Wl,-rpath,${ucx_dir}/lib"
-    export LD_LIBRARY_PATH="${ucx_dir}/lib:${LD_LIBRARY_PATH:-}"
+    if [[ "$ucx_dir" == "system" ]]; then
+        log_info "OpenMPI: enabling system UCX"
+        ucx_arg="--with-ucx"
+    else
+        extra_cpp+=" -I${ucx_dir}/include"
+        extra_ld+=" -L${ucx_dir}/lib"
+        extra_rpath+=" -Wl,-rpath,${ucx_dir}/lib"
+        export LD_LIBRARY_PATH="${ucx_dir}/lib:${LD_LIBRARY_PATH:-}"
+        ucx_arg="--with-ucx=${ucx_dir}"
+    fi
 
     # --- UCC ---
-    extra_cpp+=" -I${ucc_dir}/include"
-    extra_ld+=" -L${ucc_dir}/lib"
-    extra_rpath+=" -Wl,-rpath,${ucc_dir}/lib"
-    export LD_LIBRARY_PATH="${ucc_dir}/lib:${LD_LIBRARY_PATH}"
+    if [[ -n "$ucc_dir" ]]; then
+        log_info "OpenMPI: enabling UCC ($ucc_dir)"
+        extra_cpp+=" -I${ucc_dir}/include"
+        extra_ld+=" -L${ucc_dir}/lib"
+        extra_rpath+=" -Wl,-rpath,${ucc_dir}/lib"
+        export LD_LIBRARY_PATH="${ucc_dir}/lib:${LD_LIBRARY_PATH:-}"
+        ucc_arg="--with-ucc=${ucc_dir}"
+    else
+        log_info "OpenMPI: UCC disabled"
+    fi
 
     # --- hcoll ---
     local hcoll_arg="--without-hcoll"
@@ -77,7 +91,7 @@ ompi_build() {
             extra_cpp+=" -I${hcoll_dir}/include"
             extra_ld+=" -L${hcoll_dir}/lib"
             extra_rpath+=" -Wl,-rpath,${hcoll_dir}/lib"
-            export LD_LIBRARY_PATH="${hcoll_dir}/lib:${LD_LIBRARY_PATH}"
+            export LD_LIBRARY_PATH="${hcoll_dir}/lib:${LD_LIBRARY_PATH:-}"
             hcoll_arg="--with-hcoll=${hcoll_dir}"
         else
             log_info "OpenMPI: hcoll not resolved — disabling"
@@ -107,14 +121,16 @@ ompi_build() {
         "${prte_flag}"
         "--enable-mpi1-compatibility"
         "--enable-mpi-fortran=all"
-        "--with-ucx=${ucx_dir}"
-        "--with-ucx-libdir=${ucx_dir}/lib"
-        "--with-ucc=${ucc_dir}"
+        "$ucx_arg"
+        "$ucc_arg"
         "--with-pmix"
         "--with-ofi=no"
         "$hcoll_arg"
         "$cuda_arg"
     )
+    if [[ "$ucx_dir" != "system" ]]; then
+        configure_args+=("--with-ucx-libdir=${ucx_dir}/lib")
+    fi
 
     if knem_dir=$(find_knem_dir 2>/dev/null); then
         log_info "OpenMPI: enabling knem ($knem_dir)"
