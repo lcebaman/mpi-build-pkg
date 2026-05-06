@@ -64,6 +64,7 @@ START_DIR="$PWD"
 source "$LIB_DIR/log.sh"
 source "$LIB_DIR/detect.sh"
 source "$LIB_DIR/modules_env.sh"
+source "$LIB_DIR/patches.sh"
 source "$LIB_DIR/build_ucx.sh"
 source "$LIB_DIR/build_ucc.sh"
 source "$LIB_DIR/build_ompi.sh"
@@ -81,6 +82,8 @@ UCC_VERSION=""
 UCC_ENABLED=0
 PREFIX=""
 MODULE_ROOT=""
+ARCHIVE_DIR="${ARCHIVE_DIR:-$SCRIPT_DIR/archives}"
+BUILDING_DIR="${BUILDING_DIR:-$SCRIPT_DIR/building}"
 HCOLL_MODE="no"          # no | auto | yes:<path>
 CUDA_MODE="auto"         # no | auto | yes:<path>
 GDRCOPY_MODE="auto"      # no | auto | yes:<path>
@@ -160,6 +163,16 @@ case "$MODULE_ROOT" in
     *)  MODULE_ROOT="$START_DIR/$MODULE_ROOT" ;;
 esac
 MODULE_ROOT="${MODULE_ROOT%/}"
+case "$ARCHIVE_DIR" in
+    /*) ;;
+    *)  ARCHIVE_DIR="$START_DIR/$ARCHIVE_DIR" ;;
+esac
+ARCHIVE_DIR="${ARCHIVE_DIR%/}"
+case "$BUILDING_DIR" in
+    /*) ;;
+    *)  BUILDING_DIR="$START_DIR/$BUILDING_DIR" ;;
+esac
+BUILDING_DIR="${BUILDING_DIR%/}"
 
 # Install paths follow: $PREFIX/<pkg>/<version>/<compiler>/<compiler_version>
 if [[ $UCX_SYSTEM -eq 1 ]]; then
@@ -195,6 +208,8 @@ fi
 log_kv "hcoll"            "$HCOLL_MODE"
 log_kv "CUDA"             "$CUDA_MODE"
 log_kv "GDRCopy"          "$GDRCOPY_MODE"
+log_kv "Archives"         "$ARCHIVE_DIR"
+log_kv "Build trees"      "$BUILDING_DIR"
 log_kv "Module root"      "$MODULE_ROOT"
 log_kv "Skip UCX"         "$SKIP_UCX"
 log_kv "Skip UCC"         "$SKIP_UCC"

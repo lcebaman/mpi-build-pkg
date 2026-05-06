@@ -4,23 +4,27 @@
 ucx_download() {
     local version="$1"
     local tarball="ucx-${version}.tar.gz"
+    local archive_file="${ARCHIVE_DIR}/${tarball}"
     local url="https://github.com/openucx/ucx/releases/download/v${version}/${tarball}"
+    local src_dir="${BUILDING_DIR}/ucx-${version}"
 
     log_info "Preparing UCX ${version}..."
+    mkdir -p "$ARCHIVE_DIR" "$BUILDING_DIR"
 
-    if [[ -f "$tarball" ]]; then
-        log_info "Tarball exists: $tarball (skipping download)"
+    if [[ -f "$archive_file" ]]; then
+        log_info "Tarball exists: $archive_file (skipping download)"
     else
         log_info "Downloading: $url"
-        wget -q --show-progress -c "$url" || log_die "UCX download failed"
+        wget -q --show-progress -c "$url" -O "$archive_file" || log_die "UCX download failed"
     fi
 
-    if [[ -d "ucx-${version}" ]]; then
-        log_info "Removing stale source dir ucx-${version}"
-        rm -rf "ucx-${version}"
+    if [[ -d "$src_dir" ]]; then
+        log_info "Removing stale source dir $src_dir"
+        rm -rf "$src_dir"
     fi
 
-    tar -xzf "$tarball" || log_die "UCX extraction failed"
+    tar -xzf "$archive_file" -C "$BUILDING_DIR" || log_die "UCX extraction failed"
+    apply_package_patches "ucx" "$version" "$COMPILER" "$COMPILER_VERSION" "$src_dir"
 }
 
 # ucx_build <version> <install_prefix> <cuda_dir|""> <gdrcopy_dir|"">
@@ -29,7 +33,7 @@ ucx_build() {
     local install_dir=$2
     local cuda_dir="${3:-}"
     local gdrcopy_dir="${4:-}"
-    local build_dir="ucx-${version}"
+    local build_dir="${BUILDING_DIR}/ucx-${version}"
     local compiler_basename="${CC##*/}"
     local commonflags="-O3"
     local knem_dir=""
@@ -42,6 +46,10 @@ ucx_build() {
     if [[ "$compiler_basename" == "icx" || "$compiler_basename" == "icpx" \
        || "$compiler_basename" == "clang" ]]; then
         commonflags+=" -Wno-unused-command-line-argument"
+    fi
+    if [[ "${COMPILER}" == "gcc" && "${COMPILER_VERSION}" == "16.1.0" ]]; then
+        log_info "UCX: adding GCC 16.1.0 OpenMP deprecation warning suppression"
+        commonflags+=" -Wno-error=deprecated-openmp"
     fi
 
     configure_args=(

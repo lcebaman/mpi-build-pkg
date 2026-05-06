@@ -6,16 +6,18 @@ ucc_download() {
     # GitHub refs/tags archives extract as ucc-<version>/ but the tarball
     # itself is named v<version>.tar.gz — rename locally for consistency.
     local tarball="ucc-${version}.tar.gz"
+    local archive_file="${ARCHIVE_DIR}/${tarball}"
     local url="https://github.com/openucx/ucc/archive/refs/tags/v${version}.tar.gz"
-    local src_dir="ucc-${version}"
+    local src_dir="${BUILDING_DIR}/ucc-${version}"
 
     log_info "Preparing UCC ${version}..."
+    mkdir -p "$ARCHIVE_DIR" "$BUILDING_DIR"
 
-    if [[ -f "$tarball" ]]; then
-        log_info "Tarball exists: $tarball (skipping download)"
+    if [[ -f "$archive_file" ]]; then
+        log_info "Tarball exists: $archive_file (skipping download)"
     else
         log_info "Downloading: $url"
-        wget -q --show-progress -c "$url" -O "$tarball" || log_die "UCC download failed"
+        wget -q --show-progress -c "$url" -O "$archive_file" || log_die "UCC download failed"
     fi
 
     if [[ -d "$src_dir" ]]; then
@@ -23,11 +25,12 @@ ucc_download() {
         rm -rf "$src_dir"
     fi
 
-    tar -xzf "$tarball" || log_die "UCC extraction failed"
+    tar -xzf "$archive_file" -C "$BUILDING_DIR" || log_die "UCC extraction failed"
 
     # GitHub archive extracts as ucc-<version>/ — confirm and run autogen.
     # The refs/tags archive never contains a pre-generated configure script.
     [[ -d "$src_dir" ]] || log_die "Expected source dir '$src_dir' after extraction"
+    apply_package_patches "ucc" "$version" "$COMPILER" "$COMPILER_VERSION" "$src_dir"
 
     if [[ ! -f "$src_dir/configure" ]]; then
         log_info "Running autogen.sh for UCC ${version}..."
@@ -46,7 +49,7 @@ ucc_build() {
     local install_dir=$2
     local ucx_dir=$3
     local cuda_dir="${4:-}"
-    local build_dir="ucc-${version}"
+    local build_dir="${BUILDING_DIR}/ucc-${version}"
     local nccl_dir=""
     local ucx_arg=""
     local -a configure_args
