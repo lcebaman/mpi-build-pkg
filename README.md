@@ -66,7 +66,7 @@ mpi-build-pkg/
 | `--ucx=system` | — | Alias for `--ucx-version=system` |
 | `--ucc-version=` | disabled | Enable UCC and use version, e.g. `1.3.0` |
 | `--prefix=` | — | Installation root (required) |
-| `--module-root=` | `./modules` next to `build_mpi_stack.sh` | Where to write Lmod `.lua` files |
+| `--module-root=` | `${PREFIX}/modulefiles` | Where to write Lmod `.lua` files |
 | `--with-hcoll[=PATH]` | disabled | Enable hcoll; auto-detect or explicit path |
 | `--without-hcoll` | ✓ default | Disable hcoll |
 | `--with-cuda[=PATH]` | auto-detect | Enable GPU-aware MPI |
@@ -92,11 +92,11 @@ e.g.:
 
 ## Lmod modules
 
-Generated at `--module-root` (default `modules/` next to `build_mpi_stack.sh`):
+Generated at `--module-root` (default `${PREFIX}/modulefiles`):
 ```
-modules/ucx/1.20.0/intel/2025.2.1.lua
-modules/ucc/1.3.0/intel/2025.2.1.lua        # only with --ucc-version
-modules/openmpi/5.0.9/intel/2025.2.1.lua
+${PREFIX}/modulefiles/ucx/1.20.0/intel/2025.2.1.lua
+${PREFIX}/modulefiles/ucc/1.3.0/intel/2025.2.1.lua        # only with --ucc-version
+${PREFIX}/modulefiles/openmpi/5.0.9/intel/2025.2.1.lua
 ```
 
 Load with:

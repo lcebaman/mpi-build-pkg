@@ -14,8 +14,8 @@ generate_module() {
     local ucc_root="${8:-}"
     local hcoll_root="${9:-}"
 
-    local moduledir="${module_root}/${libname}/${version}/${compiler}"
-    local modulefile="${moduledir}/${cversion}.lua"
+    local moduledir="${module_root}/${compiler}/${cversion}"
+    local modulefile="${moduledir}/${libname}/${version}.lua"
 
     mkdir -p "$moduledir"
 

@@ -20,7 +20,7 @@
 #   --with-cuda[=<path>]       Enable CUDA support (auto-detect or explicit path)
 #   --without-cuda             Disable CUDA support (default: auto-detect)
 #   --with-gdrcopy[=<path>]    Enable GDRCopy (auto-detect or explicit path)
-#   --module-root=<path>       Where to write Lmod .lua files (default: ./modules next to this script)
+#   --module-root=<path>       Where to write Lmod .lua files (default: ${PREFIX}/modulefiles)
 #   --skip-ucx                 Skip UCX build (use existing install)
 #   --skip-ucc                 Skip UCC build (use existing install)
 #   --skip-ompi                Skip OpenMPI build
@@ -157,7 +157,7 @@ if [[ -n "$UCC_VERSION" ]]; then
 fi
 
 PREFIX="${PREFIX%/}"
-MODULE_ROOT="${MODULE_ROOT:-$SCRIPT_DIR/modules}"
+MODULE_ROOT="${MODULE_ROOT:-$PREFIX/modulefiles}"
 case "$MODULE_ROOT" in
     /*) ;;
     *)  MODULE_ROOT="$START_DIR/$MODULE_ROOT" ;;
