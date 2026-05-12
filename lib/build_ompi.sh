@@ -4,6 +4,8 @@
 ompi_download() {
     local version="$1"
     local tarball="openmpi-${version}.tar.gz"
+    local archive_file="${ARCHIVE_DIR}/${tarball}"
+    local src_dir="${BUILDING_DIR}/openmpi-${version}"
     local url=""
 
     case "$version" in
@@ -14,20 +16,22 @@ ompi_download() {
     esac
 
     log_info "Preparing OpenMPI ${version}..."
+    mkdir -p "$ARCHIVE_DIR" "$BUILDING_DIR"
 
-    if [[ -f "$tarball" ]]; then
-        log_info "Tarball exists: $tarball (skipping download)"
+    if [[ -f "$archive_file" ]]; then
+        log_info "Tarball exists: $archive_file (skipping download)"
     else
         log_info "Downloading: $url"
-        wget -q --show-progress -c "$url" || log_die "OpenMPI download failed"
+        wget -q --show-progress -c "$url" -O "$archive_file" || log_die "OpenMPI download failed"
     fi
 
-    if [[ -d "openmpi-${version}" ]]; then
-        log_info "Removing stale source dir openmpi-${version}"
-        rm -rf "openmpi-${version}"
+    if [[ -d "$src_dir" ]]; then
+        log_info "Removing stale source dir $src_dir"
+        rm -rf "$src_dir"
     fi
 
-    tar -xzf "$tarball" || log_die "OpenMPI extraction failed"
+    tar -xzf "$archive_file" -C "$BUILDING_DIR" || log_die "OpenMPI extraction failed"
+    apply_package_patches "openmpi" "$version" "$COMPILER" "$COMPILER_VERSION" "$src_dir"
 }
 
 # ompi_build <version> <install_prefix> <ucx_prefix> <ucc_prefix>
@@ -40,7 +44,7 @@ ompi_build() {
     local hcoll_mode=$5
     local hcoll_dir="${6:-}"
     local cuda_dir="${7:-}"
-    local build_dir="openmpi-${version}"
+    local build_dir="${BUILDING_DIR}/openmpi-${version}"
     local compiler_basename="${CC##*/}"
     local knem_dir=""
     local prte_flag=""
@@ -151,8 +155,15 @@ ompi_build() {
             ./configure --with-wrapper-ldflags=--rtlib=compiler-rt \
             "${configure_args[@]}"
     else
+        local cflags="-O3"
+        local cxxflags="-O3"
+        if [[ "${COMPILER}" == "gcc" && "${COMPILER_VERSION}" == "16.1.0" ]]; then
+            log_info "OpenMPI: adding GCC 16.1.0 inline limit workaround"
+            cflags="--param=max-inline-insns-single=4000"
+            cxxflags="--param=max-inline-insns-single=4000"
+        fi
         CC=${CC} CXX=${CXX} FC=${FC} \
-            CFLAGS="-O3" CXXFLAGS="-O3" FCFLAGS="-O3" \
+            CFLAGS="$cflags" CXXFLAGS="$cxxflags" FCFLAGS="-O3" \
             ./configure "${configure_args[@]}"
     fi
 

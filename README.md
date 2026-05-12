@@ -7,10 +7,12 @@ Build UCX + OpenMPI as a coherent stack, with optional UCC, CUDA, and hcoll supp
 ```
 mpi-build-pkg/
 ├── build_mpi_stack.sh      ← main entry point
+├── patches/                ← optional source patches selected by package/version/compiler
 └── lib/
     ├── log.sh              ← coloured logging helpers
     ├── detect.sh           ← CUDA / GDRCopy / hcoll / NCCL / knem detection
     ├── modules_env.sh      ← compiler module loading (Lmod)
+    ├── patches.sh          ← conditional source patch application
     ├── build_ucx.sh        ← UCX download + configure + build
     ├── build_ucc.sh        ← UCC download + configure + build
     ├── build_ompi.sh       ← OpenMPI download + configure + build
@@ -64,7 +66,7 @@ mpi-build-pkg/
 | `--ucx=system` | — | Alias for `--ucx-version=system` |
 | `--ucc-version=` | disabled | Enable UCC and use version, e.g. `1.3.0` |
 | `--prefix=` | — | Installation root (required) |
-| `--module-root=` | `./modules` next to `build_mpi_stack.sh` | Where to write Lmod `.lua` files |
+| `--module-root=` | `${PREFIX}/modulefiles` | Where to write Lmod `.lua` files |
 | `--with-hcoll[=PATH]` | disabled | Enable hcoll; auto-detect or explicit path |
 | `--without-hcoll` | ✓ default | Disable hcoll |
 | `--with-cuda[=PATH]` | auto-detect | Enable GPU-aware MPI |
@@ -90,11 +92,11 @@ e.g.:
 
 ## Lmod modules
 
-Generated at `--module-root` (default `modules/` next to `build_mpi_stack.sh`):
+Generated at `--module-root` (default `${PREFIX}/modulefiles`):
 ```
-modules/ucx/1.20.0/intel/2025.2.1.lua
-modules/ucc/1.3.0/intel/2025.2.1.lua        # only with --ucc-version
-modules/openmpi/5.0.9/intel/2025.2.1.lua
+${PREFIX}/modulefiles/ucx/1.20.0/intel/2025.2.1.lua
+${PREFIX}/modulefiles/ucc/1.3.0/intel/2025.2.1.lua        # only with --ucc-version
+${PREFIX}/modulefiles/openmpi/5.0.9/intel/2025.2.1.lua
 ```
 
 Load with:
@@ -114,6 +116,43 @@ module does not prepend UCX paths.
 | `HCOLL_DIR` | Override hcoll auto-detection |
 | `NCCL_HOME` | Override NCCL path for UCC |
 | `UCXCUDAOPT` | Extra space-separated UCX CUDA configure args |
+| `ARCHIVE_DIR` | Override tarball cache directory, default `./archives` next to `build_mpi_stack.sh` |
+| `BUILDING_DIR` | Override extracted source/build directory, default `./building` next to `build_mpi_stack.sh` |
+| `PATCH_ROOT` | Override patch directory, default `./patches` next to `build_mpi_stack.sh` |
+| `PATCH_STRIP` | Override `patch -p` strip level, default `1` |
+
+## Source patches
+
+Patches are applied after source extraction and before configure/autogen. Drop
+standard unified diff files under `patches/<pkg>/`, where `<pkg>` is `ucx`,
+`ucc`, or `openmpi`.
+
+Matching directories are applied in this order:
+
+```text
+patches/<pkg>/all/*.patch
+patches/<pkg>/<version>/*.patch
+patches/<pkg>/<compiler>/*.patch
+patches/<pkg>/<compiler>/<compiler_version>/*.patch
+patches/<pkg>/<version>/<compiler>/*.patch
+patches/<pkg>/<version>/<compiler>/<compiler_version>/*.patch
+```
+
+Examples:
+
+```text
+patches/ucx/1.20.0/0001-fix-build.patch
+patches/openmpi/aocc/5.1.0/0001-aocc-wrapper-flags.patch
+patches/ucc/1.7.0/aocc/5.1.0/0001-ucc-aocc-build.patch
+```
+
+Built-in compiler workarounds:
+
+```text
+gcc/16.1.0: UCX adds -Wno-error=deprecated-openmp.
+gcc/16.1.0: OpenMPI uses --param=max-inline-insns-single=4000 in CFLAGS/CXXFLAGS
+            and applies patches/openmpi/gcc/16.1.0/*.patch.
+```
 
 ## hcoll vs UCC
 
