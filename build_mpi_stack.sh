@@ -20,7 +20,8 @@
 #   --with-cuda[=<path>]       Enable CUDA support (auto-detect or explicit path)
 #   --without-cuda             Disable CUDA support (default: auto-detect)
 #   --with-gdrcopy[=<path>]    Enable GDRCopy (auto-detect or explicit path)
-#   --module-root=<path>       Where to write Lmod .lua files (default: ${PREFIX}/modulefiles)
+#   --module-root=<path>       Override where to write all Lmod .lua files
+#                              (default: each package install prefix/modulefiles)
 #   --skip-ucx                 Skip UCX build (use existing install)
 #   --skip-ucc                 Skip UCC build (use existing install)
 #   --skip-ompi                Skip OpenMPI build
@@ -157,12 +158,13 @@ if [[ -n "$UCC_VERSION" ]]; then
 fi
 
 PREFIX="${PREFIX%/}"
-MODULE_ROOT="${MODULE_ROOT:-$PREFIX/modulefiles}"
-case "$MODULE_ROOT" in
-    /*) ;;
-    *)  MODULE_ROOT="$START_DIR/$MODULE_ROOT" ;;
-esac
-MODULE_ROOT="${MODULE_ROOT%/}"
+if [[ -n "$MODULE_ROOT" ]]; then
+    case "$MODULE_ROOT" in
+        /*) ;;
+        *)  MODULE_ROOT="$START_DIR/$MODULE_ROOT" ;;
+    esac
+    MODULE_ROOT="${MODULE_ROOT%/}"
+fi
 case "$ARCHIVE_DIR" in
     /*) ;;
     *)  ARCHIVE_DIR="$START_DIR/$ARCHIVE_DIR" ;;
@@ -189,6 +191,16 @@ OMPI_MODULE_UCX_ROOT="$UCX_PREFIX"
 [[ $UCX_SYSTEM -eq 1 ]] && OMPI_MODULE_UCX_ROOT=""
 OMPI_MODULE_UCC_ROOT="$UCC_PREFIX"
 
+if [[ -n "$MODULE_ROOT" ]]; then
+    UCX_MODULE_ROOT="$MODULE_ROOT"
+    UCC_MODULE_ROOT="$MODULE_ROOT"
+    OMPI_MODULE_ROOT="$MODULE_ROOT"
+else
+    UCX_MODULE_ROOT="$UCX_PREFIX/modulefiles"
+    UCC_MODULE_ROOT="$UCC_PREFIX/modulefiles"
+    OMPI_MODULE_ROOT="$OMPI_PREFIX/modulefiles"
+fi
+
 # =============================================================================
 # Print configuration summary
 # =============================================================================
@@ -210,7 +222,13 @@ log_kv "CUDA"             "$CUDA_MODE"
 log_kv "GDRCopy"          "$GDRCOPY_MODE"
 log_kv "Archives"         "$ARCHIVE_DIR"
 log_kv "Build trees"      "$BUILDING_DIR"
-log_kv "Module root"      "$MODULE_ROOT"
+if [[ -n "$MODULE_ROOT" ]]; then
+    log_kv "Module root"      "$MODULE_ROOT"
+else
+    [[ $UCX_SYSTEM -eq 0 ]] && log_kv "UCX modules"      "$UCX_MODULE_ROOT"
+    [[ $UCC_ENABLED -eq 1 ]] && log_kv "UCC modules"      "$UCC_MODULE_ROOT"
+    log_kv "OpenMPI modules"  "$OMPI_MODULE_ROOT"
+fi
 log_kv "Skip UCX"         "$SKIP_UCX"
 log_kv "Skip UCC"         "$SKIP_UCC"
 log_kv "Skip OpenMPI"     "$SKIP_OMPI"
@@ -244,7 +262,7 @@ if [[ $SKIP_UCX -eq 0 ]]; then
     ucx_download "$UCX_VERSION"
     ucx_build    "$UCX_VERSION" "$UCX_PREFIX" "$CUDA_DIR" "$GDRCOPY_DIR"
     generate_module "ucx" "$UCX_VERSION" "$UCX_PREFIX" \
-        "$COMPILER" "$COMPILER_VERSION" "$MODULE_ROOT"
+        "$COMPILER" "$COMPILER_VERSION" "$UCX_MODULE_ROOT"
     log_ok "UCX done  ($(elapsed $START_TOTAL)s total)"
 else
     if [[ $UCX_SYSTEM -eq 1 ]]; then
@@ -261,7 +279,7 @@ if [[ $UCC_ENABLED -eq 1 && $SKIP_UCC -eq 0 ]]; then
     ucc_download "$UCC_VERSION"
     ucc_build    "$UCC_VERSION" "$UCC_PREFIX" "$UCX_PREFIX" "$CUDA_DIR"
     generate_module "ucc" "$UCC_VERSION" "$UCC_PREFIX" \
-        "$COMPILER" "$COMPILER_VERSION" "$MODULE_ROOT"
+        "$COMPILER" "$COMPILER_VERSION" "$UCC_MODULE_ROOT"
     log_ok "UCC done  ($(elapsed $T_UCC)s)"
 else
     if [[ $UCC_ENABLED -eq 1 ]]; then
@@ -281,7 +299,7 @@ if [[ $SKIP_OMPI -eq 0 ]]; then
         "$HCOLL_MODE" "$HCOLL_DIR" \
         "$CUDA_DIR"
     generate_module "openmpi" "$OMPI_VERSION" "$OMPI_PREFIX" \
-        "$COMPILER" "$COMPILER_VERSION" "$MODULE_ROOT" \
+        "$COMPILER" "$COMPILER_VERSION" "$OMPI_MODULE_ROOT" \
         "$OMPI_MODULE_UCX_ROOT" "$OMPI_MODULE_UCC_ROOT" "$HCOLL_DIR"
     log_ok "OpenMPI done  ($(elapsed $T_OMPI)s)"
 else
@@ -289,5 +307,12 @@ else
 fi
 
 log_banner "Build complete  (total: $(elapsed $START_TOTAL)s)"
-log_info "Modules written to: $MODULE_ROOT"
-log_info "Load with:  module use $MODULE_ROOT && module load openmpi/$OMPI_VERSION/$COMPILER/$COMPILER_VERSION"
+if [[ -n "$MODULE_ROOT" ]]; then
+    log_info "Modules written to: $MODULE_ROOT"
+    log_info "Load with:  module use $MODULE_ROOT && module load openmpi/$OMPI_VERSION/$COMPILER/$COMPILER_VERSION"
+else
+    [[ $UCX_SYSTEM -eq 0 ]] && log_info "UCX modules:     $UCX_MODULE_ROOT"
+    [[ $UCC_ENABLED -eq 1 ]] && log_info "UCC modules:     $UCC_MODULE_ROOT"
+    log_info "OpenMPI modules: $OMPI_MODULE_ROOT"
+    log_info "Load with:  module use $OMPI_MODULE_ROOT && module load openmpi/$OMPI_VERSION"
+fi

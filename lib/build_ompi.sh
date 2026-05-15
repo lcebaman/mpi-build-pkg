@@ -148,12 +148,16 @@ ompi_build() {
 
     if [[ "$compiler_basename" == "clang" ]]; then
         # AOCC: half-precision float shim + suppress unused-arg warnings
+        AOCC_ROOT=$(dirname "$(dirname "$(readlink -f "$(which clang)")")")
+        AOCC_RT_DIR=$(dirname $(find ${AOCC_ROOT} -name 'libclang_rt.builtins-x86_64.a' | head -1))
         local COMMONFLAGS="-O3 -fPIC -m64 -Wno-error"
         CC=${CC} CXX=${CXX} FC=${FC} \
             CFLAGS="$COMMONFLAGS" CXXFLAGS="$COMMONFLAGS" FCFLAGS="$COMMONFLAGS" \
-            LDFLAGS="${LDFLAGS} $COMMONFLAGS --rtlib=compiler-rt -lunwind" \
-            ./configure --with-wrapper-ldflags=--rtlib=compiler-rt \
+            LDFLAGS="-L${AOCC_RT_DIR}"  LIBS="-lclang_rt.builtins-x86_64"\
+            ./configure \
             "${configure_args[@]}"
+            #            LDFLAGS="${LDFLAGS} $COMMONFLAGS --rtlib=compiler-rt -lunwind" \
+            #./configure --with-wrapper-ldflags=--rtlib=compiler-rt \
     else
         local cflags="-O3"
         local cxxflags="-O3"

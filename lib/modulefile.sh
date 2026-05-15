@@ -17,7 +17,7 @@ generate_module() {
     local moduledir="${module_root}/${compiler}/${cversion}"
     local modulefile="${moduledir}/${libname}/${version}.lua"
 
-    mkdir -p "$moduledir"
+    mkdir -p "$(dirname "$modulefile")"
 
     # ---- Header ----
     cat >"$modulefile" <<EOF
