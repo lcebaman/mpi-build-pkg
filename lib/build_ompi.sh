@@ -168,12 +168,15 @@ ompi_build() {
             cxxflags="--param=max-inline-insns-single=4000"
         fi
         if [[ "$COMPILER" == "aocc" ]]; then
-            log_info "OpenMPI: adding AOCC compiler-rt runtime for linking"
-            LDFLAGS="${LDFLAGS:-} -rtlib=compiler-rt"
+            log_info "OpenMPI: adding AOCC compiler-rt builtins for linking"
+            local aocc_resource_dir
+            aocc_resource_dir=$("${CC}" -print-resource-dir)
+            LIBS="${aocc_resource_dir}/lib/linux/libclang_rt.builtins-x86_64.a"
         fi
         CC=${CC} CXX=${CXX} FC=${FC} \
             CFLAGS="$cflags ${CFLAGS:-}" CXXFLAGS="$cxxflags ${CXXFLAGS:-}" \
             FCFLAGS="-O3 ${FCFLAGS:-}" FFLAGS="-O3 ${FFLAGS:-}" \
+            LIBS="${LIBS:-}" \
             ./configure "${configure_args[@]}"
     fi
 
