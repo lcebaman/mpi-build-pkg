@@ -167,6 +167,10 @@ ompi_build() {
             cflags="--param=max-inline-insns-single=4000"
             cxxflags="--param=max-inline-insns-single=4000"
         fi
+        if [[ "$COMPILER" == "aocc" ]]; then
+            log_info "OpenMPI: adding AOCC compiler-rt runtime for linking"
+            LDFLAGS="${LDFLAGS:-} -rtlib=compiler-rt"
+        fi
         CC=${CC} CXX=${CXX} FC=${FC} \
             CFLAGS="$cflags ${CFLAGS:-}" CXXFLAGS="$cxxflags ${CXXFLAGS:-}" \
             FCFLAGS="-O3 ${FCFLAGS:-}" FFLAGS="-O3 ${FFLAGS:-}" \
