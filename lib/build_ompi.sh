@@ -45,7 +45,6 @@ ompi_build() {
     local hcoll_dir="${6:-}"
     local cuda_dir="${7:-}"
     local build_dir="${BUILDING_DIR}/openmpi-${version}"
-    local compiler_basename="${CC##*/}"
     local knem_dir=""
     local prte_flag=""
     local ucx_arg=""
@@ -146,8 +145,9 @@ ompi_build() {
 
     log_info "Building OpenMPI ($(nproc) jobs)..."
 
-    if [[ "$compiler_basename" == "clang" ]]; then
-        # AOCC: half-precision float shim + suppress unused-arg warnings
+    if [[ "$COMPILER" == "aocc" && "${COMPILER_VERSION%%.*}" -lt 6 ]]; then
+        # AOCC < 6.0.0: half-precision float shim + suppress unused-arg warnings
+        # (no longer needed starting with AOCC 6.0.0)
         AOCC_ROOT=$(dirname "$(dirname "$(readlink -f "$(which clang)")")")
         AOCC_RT_DIR=$(dirname $(find ${AOCC_ROOT} -name 'libclang_rt.builtins-x86_64.a' | head -1))
         local COMMONFLAGS="-O3 -fPIC -m64 -Wno-error"
