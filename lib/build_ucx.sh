@@ -134,7 +134,8 @@ ucx_build() {
     fi
 
     CC=${CC} CXX=${CXX} FC=${FC} \
-        CFLAGS="$commonflags" CXXFLAGS="$commonflags" FCFLAGS="$commonflags" \
+        CFLAGS="$commonflags ${CFLAGS:-}" CXXFLAGS="$commonflags ${CXXFLAGS:-}" \
+        FCFLAGS="$commonflags ${FCFLAGS:-}" FFLAGS="$commonflags ${FFLAGS:-}" \
         ./configure "${configure_args[@]}"
 
     log_info "Building UCX ($(nproc) jobs)..."
