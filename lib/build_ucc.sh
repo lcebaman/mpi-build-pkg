@@ -90,7 +90,7 @@ ucc_build() {
     fi
 
     CC=${CC} CXX=${CXX} FC=${FC} \
-        CFLAGS="-O3" CXXFLAGS="-O3" \
+        CFLAGS="-O3 ${CFLAGS:-}" CXXFLAGS="-O3 ${CXXFLAGS:-}" \
         ./configure "${configure_args[@]}"
 
     log_info "Building UCC ($(nproc) jobs)..."
