@@ -34,23 +34,12 @@ ucx_build() {
     local cuda_dir="${3:-}"
     local gdrcopy_dir="${4:-}"
     local build_dir="${BUILDING_DIR}/ucx-${version}"
-    local compiler_basename="${CC##*/}"
     local commonflags="-O3"
     local knem_dir=""
     local -a configure_args
 
     log_info "Configuring UCX ${version} → ${install_dir}"
     cd "$build_dir"
-
-    # Suppress clang/icx unused-arg noise
-    if [[ "$compiler_basename" == "icx" || "$compiler_basename" == "icpx" \
-       || "$compiler_basename" == "clang" ]]; then
-        commonflags+=" -Wno-unused-command-line-argument"
-    fi
-    if [[ "${COMPILER}" == "gcc" && "${COMPILER_VERSION}" == "16.1.0" ]]; then
-        log_info "UCX: adding GCC 16.1.0 OpenMP deprecation warning suppression"
-        commonflags+=" -Wno-error=deprecated-openmp"
-    fi
 
     configure_args=(
         "--prefix=${install_dir}"

@@ -129,4 +129,19 @@ _set_compiler_vars_from_conf() {
     log_info "CC=$CC"
     log_info "CXX=$CXX"
     log_info "FC=$FC"
+
+    # Compiler/version-specific CFLAGS/CXXFLAGS/FFLAGS (warning suppressions,
+    # inline-limit tweaks, etc.) — optional fields, merged on top of whatever
+    # the caller already exported so manual overrides still take effect.
+    local cflags cxxflags fflags
+    cflags=$(conf_lookup   "$compiler" "$cversion" "cflags")   || cflags=""
+    cxxflags=$(conf_lookup "$compiler" "$cversion" "cxxflags") || cxxflags=""
+    fflags=$(conf_lookup   "$compiler" "$cversion" "fflags")   || fflags=""
+
+    export CFLAGS="${cflags} ${CFLAGS:-}"
+    export CXXFLAGS="${cxxflags} ${CXXFLAGS:-}"
+    export FFLAGS="${fflags} ${FFLAGS:-}"
+    export FCFLAGS="${fflags} ${FCFLAGS:-}"
+
+    [[ -n "$cflags$cxxflags$fflags" ]] && log_info "Compiler flags from compilers.conf: CFLAGS+='$cflags' CXXFLAGS+='$cxxflags' FFLAGS/FCFLAGS+='$fflags'"
 }
