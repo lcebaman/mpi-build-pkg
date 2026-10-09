@@ -155,61 +155,30 @@ ompi_build() {
     local ldflags="${LDFLAGS:-}"
     local libs="${LIBS:-}"
 
+    # Compiler/version-specific CFLAGS/CXXFLAGS/FFLAGS already live in
+    # compilers.conf and were merged into the environment when the compiler
+    # module loaded (see modules_env.sh) — picked up below via ${CFLAGS:-}
+    # etc. Only AOCC's link-time compiler-rt builtins lookup is dynamic
+    # (depends on the filesystem layout) and stays here.
     case "$COMPILER" in
 
         aocc)
-            # Locate AOCC installation
-            local aocc_root
-            local aocc_rt_dir
-            local builtins
-
+            local aocc_root aocc_rt_dir builtins
             aocc_root=$(dirname "$(dirname "$(readlink -f "$(command -v clang)")")")
-
             builtins=$(find "$aocc_root" \
                             -name 'libclang_rt.builtins-x86_64.a' -print -quit)
-
-            [[ -n "$builtins" ]] || {
-                log_error "AOCC compiler runtime not found"
-                return 1
-            }
-
+            [[ -n "$builtins" ]] || log_die "AOCC compiler runtime not found under $aocc_root"
             aocc_rt_dir=$(dirname "$builtins")
-
-            # Common AOCC flags
-            cflags="-O3 -fPIC -m64"
-            cxxflags="$cflags"
-
-            # Version-specific warning handling
-            if (( 10#${COMPILER_VERSION%%.*} < 6 )); then
-                cflags+=" -Wno-error"
-                cxxflags+=" -Wno-error"
-            else # version 6 required
-                cflags+=" -Wno-error=default-const-init-var-unsafe"
-                cxxflags+=" -Wno-error=default-const-init-var-unsafe"
-            fi
 
             ldflags="-L${aocc_rt_dir} ${ldflags}"
             libs="-lclang_rt.builtins-x86_64 ${libs}"
             ;;
 
-        gcc)
-            # GCC 16.1.0 inline limit workaround
-            if [[ "$COMPILER_VERSION" == "16.1.0" ]]; then
-                log_info "OpenMPI: adding GCC 16.1.0 inline limit workaround"
-
-                cflags+=" --param=max-inline-insns-single=4000"
-                cxxflags+=" --param=max-inline-insns-single=4000"
-            fi
-            ;;
-
-        intel)
-            # Intel oneAPI: use compiler defaults
-            # CC/CXX/FC should already be set to icx/icpx/ifx
+        gcc|intel)
             ;;
 
         *)
-            log_error "Unsupported compiler: $COMPILER"
-            return 1
+            log_die "Unsupported compiler: $COMPILER"
             ;;
     esac
 
