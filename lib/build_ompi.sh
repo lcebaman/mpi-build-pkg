@@ -9,10 +9,10 @@ ompi_download() {
     local url=""
 
     case "$version" in
-    6.*)  url="https://download.open-mpi.org/release/open-mpi/v6.0/${tarball}" ;;
-    5.*)  url="https://download.open-mpi.org/release/open-mpi/v5.0/${tarball}" ;;
-    4.*)  url="https://download.open-mpi.org/release/open-mpi/v4.0/${tarball}" ;;
-    *)    log_die "Unsupported OpenMPI version: $version" ;;
+        6.*)  url="https://download.open-mpi.org/release/open-mpi/v6.0/${tarball}" ;;
+        5.*)  url="https://download.open-mpi.org/release/open-mpi/v5.0/${tarball}" ;;
+        4.*)  url="https://download.open-mpi.org/release/open-mpi/v4.0/${tarball}" ;;
+        *)    log_die "Unsupported OpenMPI version: $version" ;;
     esac
 
     log_info "Preparing OpenMPI ${version}..."
@@ -45,7 +45,6 @@ ompi_build() {
     local hcoll_dir="${6:-}"
     local cuda_dir="${7:-}"
     local build_dir="${BUILDING_DIR}/openmpi-${version}"
-    local compiler_basename="${CC##*/}"
     local knem_dir=""
     local prte_flag=""
     local ucx_arg=""
@@ -85,23 +84,23 @@ ompi_build() {
     # --- hcoll ---
     local hcoll_arg="--without-hcoll"
     case "$hcoll_mode" in
-    no)
-        log_info "OpenMPI: hcoll disabled"
-        hcoll_arg="--without-hcoll"
-        ;;
-    yes:*|auto)
-        if [[ -n "$hcoll_dir" ]]; then
-            log_info "OpenMPI: enabling hcoll ($hcoll_dir)"
-            extra_cpp+=" -I${hcoll_dir}/include"
-            extra_ld+=" -L${hcoll_dir}/lib"
-            extra_rpath+=" -Wl,-rpath,${hcoll_dir}/lib"
-            export LD_LIBRARY_PATH="${hcoll_dir}/lib:${LD_LIBRARY_PATH:-}"
-            hcoll_arg="--with-hcoll=${hcoll_dir}"
-        else
-            log_info "OpenMPI: hcoll not resolved — disabling"
+        no)
+            log_info "OpenMPI: hcoll disabled"
             hcoll_arg="--without-hcoll"
-        fi
-        ;;
+            ;;
+        yes:*|auto)
+            if [[ -n "$hcoll_dir" ]]; then
+                log_info "OpenMPI: enabling hcoll ($hcoll_dir)"
+                extra_cpp+=" -I${hcoll_dir}/include"
+                extra_ld+=" -L${hcoll_dir}/lib"
+                extra_rpath+=" -Wl,-rpath,${hcoll_dir}/lib"
+                export LD_LIBRARY_PATH="${hcoll_dir}/lib:${LD_LIBRARY_PATH:-}"
+                hcoll_arg="--with-hcoll=${hcoll_dir}"
+            else
+                log_info "OpenMPI: hcoll not resolved — disabling"
+                hcoll_arg="--without-hcoll"
+            fi
+            ;;
     esac
 
     # --- CUDA ---
@@ -116,8 +115,8 @@ ompi_build() {
 
     # prte prefix flag differs between 4.x and 5.x/6.x
     case "$version" in
-    4.*) prte_flag="--enable-mpirun-prefix-by-default" ;;
-    *)   prte_flag="--enable-prte-prefix-by-default" ;;
+        4.*) prte_flag="--enable-mpirun-prefix-by-default" ;;
+        *)   prte_flag="--enable-prte-prefix-by-default" ;;
     esac
 
     configure_args=(
@@ -145,36 +144,97 @@ ompi_build() {
     export LDFLAGS="${extra_ld# } ${extra_rpath# } ${LDFLAGS:-}"
 
     log_info "Building OpenMPI ($(nproc) jobs)..."
+    # ==============================================================================
+    # Compiler-specific configuration
+    # ==============================================================================
 
-    if [[ "$compiler_basename" == "clang" ]]; then
-        # AOCC: half-precision float shim + suppress unused-arg warnings
-        AOCC_ROOT=$(dirname "$(dirname "$(readlink -f "$(which clang)")")")
-        AOCC_RT_DIR=$(dirname $(find ${AOCC_ROOT} -name 'libclang_rt.builtins-x86_64.a' | head -1))
-        local COMMONFLAGS="-O3 -fPIC -m64 -Wno-error"
-        CC=${CC} CXX=${CXX} FC=${FC} \
-            CFLAGS="$COMMONFLAGS ${CFLAGS:-}" CXXFLAGS="$COMMONFLAGS ${CXXFLAGS:-}" \
-            FCFLAGS="$COMMONFLAGS ${FCFLAGS:-}" FFLAGS="$COMMONFLAGS ${FFLAGS:-}" \
-            LDFLAGS="-L${AOCC_RT_DIR}"  LIBS="-lclang_rt.builtins-x86_64"\
-            ./configure \
-            "${configure_args[@]}"
-            #            LDFLAGS="${LDFLAGS} $COMMONFLAGS --rtlib=compiler-rt -lunwind" \
-            #./configure --with-wrapper-ldflags=--rtlib=compiler-rt \
-    else
-        local cflags="-O3"
-        local cxxflags="-O3"
-        if [[ "${COMPILER}" == "gcc" && "${COMPILER_VERSION}" == "16.1.0" ]]; then
-            log_info "OpenMPI: adding GCC 16.1.0 inline limit workaround"
-            cflags="--param=max-inline-insns-single=4000"
-            cxxflags="--param=max-inline-insns-single=4000"
-        fi
-        CC=${CC} CXX=${CXX} FC=${FC} \
-            CFLAGS="$cflags ${CFLAGS:-}" CXXFLAGS="$cxxflags ${CXXFLAGS:-}" \
-            FCFLAGS="-O3 ${FCFLAGS:-}" FFLAGS="-O3 ${FFLAGS:-}" \
-            ./configure "${configure_args[@]}"
-    fi
+    local cflags="-O3"
+    local cxxflags="-O3"
+    local fcflags="-O3"
+    local fflags="-O3"
+    local ldflags="${LDFLAGS:-}"
+    local libs="${LIBS:-}"
 
-    make -j"$(nproc)"
-    make install
+    case "$COMPILER" in
+
+        aocc)
+            # Locate AOCC installation
+            local aocc_root
+            local aocc_rt_dir
+            local builtins
+
+            aocc_root=$(dirname "$(dirname "$(readlink -f "$(command -v clang)")")")
+
+            builtins=$(find "$aocc_root" \
+                            -name 'libclang_rt.builtins-x86_64.a' -print -quit)
+
+            [[ -n "$builtins" ]] || {
+                log_error "AOCC compiler runtime not found"
+                return 1
+            }
+
+            aocc_rt_dir=$(dirname "$builtins")
+
+            # Common AOCC flags
+            cflags="-O3 -fPIC -m64"
+            cxxflags="$cflags"
+
+            # Version-specific warning handling
+            if (( 10#${COMPILER_VERSION%%.*} < 6 )); then
+                cflags+=" -Wno-error"
+                cxxflags+=" -Wno-error"
+            else # version 6 required
+                cflags+=" -Wno-error=default-const-init-var-unsafe"
+                cxxflags+=" -Wno-error=default-const-init-var-unsafe"
+            fi
+
+            ldflags="-L${aocc_rt_dir} ${ldflags}"
+            libs="-lclang_rt.builtins-x86_64 ${libs}"
+            ;;
+
+        gcc)
+            # GCC 16.1.0 inline limit workaround
+            if [[ "$COMPILER_VERSION" == "16.1.0" ]]; then
+                log_info "OpenMPI: adding GCC 16.1.0 inline limit workaround"
+
+                cflags+=" --param=max-inline-insns-single=4000"
+                cxxflags+=" --param=max-inline-insns-single=4000"
+            fi
+            ;;
+
+        intel)
+            # Intel oneAPI: use compiler defaults
+            # CC/CXX/FC should already be set to icx/icpx/ifx
+            ;;
+
+        *)
+            log_error "Unsupported compiler: $COMPILER"
+            return 1
+            ;;
+    esac
+
+    # ==============================================================================
+    # Configure Open MPI
+    # ==============================================================================
+
+    log_info "Configuring Open MPI with $COMPILER $COMPILER_VERSION"
+
+    CC="$CC" CXX="$CXX" FC="$FC" \
+      CFLAGS="$cflags ${CFLAGS:-}" \
+      CXXFLAGS="$cxxflags ${CXXFLAGS:-}" \
+      FCFLAGS="$fcflags ${FCFLAGS:-}" \
+      FFLAGS="$fflags ${FFLAGS:-}" \
+      LDFLAGS="$ldflags" \
+      LIBS="$libs" \
+      ./configure "${configure_args[@]}" || return 1
+
+    # ==============================================================================
+    # Build and install
+    # ==============================================================================
+
+    make -j"$(nproc)" || return 1
+    make install || return 1
+
 
     cd ..
     log_ok "OpenMPI ${version} installed → ${install_dir}"
